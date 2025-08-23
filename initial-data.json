@@ -1,0 +1,52 @@
+{
+  "Maschine1": {
+    "identifikation": "UG39BE-47H8UJ",
+    "temperatur": "42°",
+    "durchgängigeLaufzeit": "2356.5 Minuten",
+    "Motor": {
+      "aktuelleLeistung": "76%",
+      "betriebsminutenGesamt": "20356.5 Minuten",
+      "letzteWartung": "01.08.2017"
+    }
+  },
+  "Maschine2": {
+    "identifikation": "ZDSJ88-112HH",
+    "temperatur": "50°",
+    "durchgängigeLaufzeit": "856.5 Minuten",
+    "Motor": {
+      "aktuelleLeistung": "67%",
+      "betriebsminutenGesamt": "80356.5 Minuten",
+      "letzteWartung": "01.02.2018"
+    }
+  },
+  "Maschine3": {
+    "identifikation": "4558N-ZZLOP",
+    "temperatur": "11°",
+    "durchgängigeLaufzeit": "1356.5 Minuten",
+    "Motor": {
+      "aktuelleLeistung": "55%",
+      "betriebsminutenGesamt": "60356.5 Minuten",
+      "letzteWartung": "09.09.2016"
+    }
+  },
+  "Maschine4": {
+    "identifikation": "DFFBN-99148",
+    "temperatur": "50°",
+    "durchgängigeLaufzeit": "1356.5 Minuten",
+    "Motor": {
+      "aktuelleLeistung": "63%",
+      "betriebsminutenGesamt": "4356.5 Minuten",
+      "letzteWartung": "unknown"
+    }
+  },
+  "Maschine5": {
+    "identifikation": "Z7ZU8-NNJK1",
+    "temperatur": "41°",
+    "durchgängigeLaufzeit": "1356.5 Minuten",
+    "Motor": {
+      "aktuelleLeistung": "32%",
+      "betriebsminutenGesamt": "20356.5 Minuten",
+      "letzteWartung": "07.01.2018"
+    }
+  }
+}
