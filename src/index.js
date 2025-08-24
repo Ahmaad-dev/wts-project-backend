@@ -138,25 +138,6 @@ function safeInterval(name, fn, ms) {
   }, ms)
 }
 
-async function updateTemperatur(){
-  const rows = await Machine.findAll()
-  for (const m of rows){
-    const drift = Math.random() - 0.5
-    m.temperatur = clamp((m.temperatur ?? 40) + drift, 10, 80)
-    // sanitisieren
-    if (!Number.isFinite(m.temperatur)) m.temperatur = 40
-    const last = lastPersist.get(m.id) || 0
-    const now = Date.now()
-    if (now - last >= PERSIST_EVERY_MS) {
-      await m.save()
-      await emitTelemetry(m)
-      lastPersist.set(m.id, now)
-    } else {
-      await emitSocketOnly(m)
-    }
-  }
-}
-
 function fix3(n) { return Number(Number(n).toFixed(3)); }
 
 async function updateLeistungUndGeschwindigkeit(){
