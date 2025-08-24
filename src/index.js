@@ -54,35 +54,37 @@ try {
 }
 
 function clamp(v, min, max) { return Math.max(min, Math.min(max, v)) }
-function round3(n) { return Math.round(n * 1000) / 1000 }
+function n(v) { const x = typeof v === 'number' ? v : parseFloat(v); return Number.isFinite(x) ? x : 0 }
+function fx(v, d) { return n(v).toFixed(d) }
+function round3(x) { return Math.round(n(x) * 1000) / 1000 }
 function ddmmyyyyToDate(s){ const [d,m,y]=s.split('.').map(n=>parseInt(n,10)); return new Date(y, m-1, d) }
 function dateToDDMMYYYY(dt){ const dd=String(dt.getDate()).padStart(2,'0'); const mm=String(dt.getMonth()+1).padStart(2,'0'); const yy=dt.getFullYear(); return `${dd}.${mm}.${yy}` }
 
 async function emitSocketOnly(m) {
   io.emit('telemetry', {
     name: m.name,
-    temperatur: m.temperatur,
-    aktuelleLeistung: m.aktuelleLeistung,
-    betriebsminutenGesamt: m.betriebsminutenGesamt,
-    geschwindigkeit: m.geschwindigkeit,
+    temperatur: n(m.temperatur),
+    aktuelleLeistung: n(m.aktuelleLeistung),
+    betriebsminutenGesamt: n(m.betriebsminutenGesamt),
+    geschwindigkeit: n(m.geschwindigkeit),
     timestamp: new Date().toISOString()
   })
 }
 
 async function emitTelemetry(m) {
   const t = await Telemetry.create({
-    temperatur: m.temperatur,
-    aktuelleLeistung: m.aktuelleLeistung,
-    betriebsminutenGesamt: m.betriebsminutenGesamt,
-    geschwindigkeit: m.geschwindigkeit,
+    temperatur: fx(m.temperatur, 2),
+    aktuelleLeistung: fx(m.aktuelleLeistung, 2),
+    betriebsminutenGesamt: fx(m.betriebsminutenGesamt, 1),
+    geschwindigkeit: fx(m.geschwindigkeit, 2),
     MachineId: m.id
   })
   io.emit('telemetry', {
     name: m.name,
-    temperatur: m.temperatur,
-    aktuelleLeistung: m.aktuelleLeistung,
-    betriebsminutenGesamt: m.betriebsminutenGesamt,
-    geschwindigkeit: m.geschwindigkeit,
+    temperatur: n(m.temperatur),
+    aktuelleLeistung: n(m.aktuelleLeistung),
+    betriebsminutenGesamt: n(m.betriebsminutenGesamt),
+    geschwindigkeit: n(m.geschwindigkeit),
     timestamp: t.createdAt
   })
 }
@@ -128,17 +130,24 @@ app.get('/api/machines/:name/telemetry', async (req, res) => {
   const where = { MachineId: m.id }
   if (since) where.createdAt = { [Op.gte]: new Date(since) }
   const rows = await Telemetry.findAll({ where, order: [['createdAt', 'DESC']], limit: Math.min(+limit, 2000) })
-  res.json(rows.reverse())
+  const out = rows.reverse().map(r => ({
+    temperatur: n(r.temperatur),
+    aktuelleLeistung: n(r.aktuelleLeistung),
+    betriebsminutenGesamt: n(r.betriebsminutenGesamt),
+    geschwindigkeit: n(r.geschwindigkeit),
+    createdAt: r.createdAt
+  }))
+  res.json(out)
 })
 
 app.post('/api/machines/:name/telemetry', async (req, res) => {
   const { temperatur, aktuelleLeistung, betriebsminutenGesamt, geschwindigkeit } = req.body
   const m = await Machine.findOne({ where: { name: req.params.name } })
   if (!m) return res.status(404).json({ error: 'not found' })
-  if (temperatur !== undefined) m.temperatur = parseFloat(temperatur)
-  if (aktuelleLeistung !== undefined) m.aktuelleLeistung = parseFloat(aktuelleLeistung)
-  if (betriebsminutenGesamt !== undefined) m.betriebsminutenGesamt = parseFloat(betriebsminutenGesamt)
-  if (geschwindigkeit !== undefined) m.geschwindigkeit = parseFloat(geschwindigkeit)
+  if (temperatur !== undefined) m.temperatur = fx(temperatur, 2)
+  if (aktuelleLeistung !== undefined) m.aktuelleLeistung = fx(aktuelleLeistung, 2)
+  if (betriebsminutenGesamt !== undefined) m.betriebsminutenGesamt = fx(betriebsminutenGesamt, 1)
+  if (geschwindigkeit !== undefined) m.geschwindigkeit = fx(geschwindigkeit, 2)
   await m.save()
   await emitTelemetry(m)
   res.json({ ok: true })
@@ -158,8 +167,8 @@ async function updateTemperatur(){
   const rows = await Machine.findAll()
   for (const m of rows){
     const drift = Math.random() - 0.5
-    m.temperatur = clamp((m.temperatur ?? 40) + drift, 10, 80)
-    if (!Number.isFinite(m.temperatur)) m.temperatur = 40
+    const v = clamp(n(m.temperatur ?? 40) + drift, 10, 80)
+    m.temperatur = fx(v, 2)
     const last = lastPersist.get(m.id) || 0
     const now = Date.now()
     if (now - last >= PERSIST_EVERY_MS) {
@@ -178,10 +187,10 @@ async function updateLeistungUndGeschwindigkeit(){
   for (const m of rows){
     const dL = (Math.random()*2) - 1
     const dV = (Math.random()*0.2) - 0.1
-    m.aktuelleLeistung = clamp((m.aktuelleLeistung ?? 50) + dL, 0, 100)
-    m.geschwindigkeit = clamp((m.geschwindigkeit ?? 2) + dV, 0, 10)
-    if (!Number.isFinite(m.aktuelleLeistung)) m.aktuelleLeistung = 0
-    if (!Number.isFinite(m.geschwindigkeit))  m.geschwindigkeit  = 0
+    const leistung = clamp(n(m.aktuelleLeistung ?? 50) + dL, 0, 100)
+    const v = clamp(n(m.geschwindigkeit ?? 2) + dV, 0, 10)
+    m.aktuelleLeistung = fx(leistung, 2)
+    m.geschwindigkeit = fx(v, 2)
     const last = lastPersist.get(m.id) || 0
     if (now - last >= PERSIST_EVERY_MS) {
       await m.save()
@@ -196,7 +205,8 @@ async function updateLeistungUndGeschwindigkeit(){
 async function updateDurchlaufzeit(){
   const rows = await Machine.findAll()
   for (const m of rows){
-    m.durchgaengigeLaufzeit = (m.durchgaengigeLaufzeit ?? 0) + (20/60)
+    const v = n(m.durchgaengigeLaufzeit ?? 0) + (20/60)
+    m.durchgaengigeLaufzeit = fx(v, 3)
     await m.save()
   }
 }
@@ -205,7 +215,8 @@ async function updateBetriebsminuten(){
   const rows = await Machine.findAll()
   const now = Date.now()
   for (const m of rows){
-    m.betriebsminutenGesamt = (m.betriebsminutenGesamt ?? 0) + 1
+    const v = n(m.betriebsminutenGesamt ?? 0) + 1
+    m.betriebsminutenGesamt = fx(v, 1)
     const last = lastPersist.get(m.id) || 0
     if (now - last >= PERSIST_EVERY_MS) {
       await m.save()

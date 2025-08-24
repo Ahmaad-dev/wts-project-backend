@@ -55,11 +55,11 @@ export async function initDb(seed) {
   const count = await Machine.count()
   if (count === 0 && seed) {
     for (const [name, m] of Object.entries(seed)) {
-      const temperatur = parseFloat(String(m.temperatur).replace('°','').replace(',','.'))
-      const durch = parseFloat(String(m.durchgängigeLaufzeit).toLowerCase().replace('minuten','').trim().replace(',','.'))
-      const leistung = parseFloat(String(m.Motor.aktuelleLeistung).replace('%','').replace(',','.'))
-      const betriebs = parseFloat(String(m.Motor.betriebsminutenGesamt).toLowerCase().replace('minuten','').trim().replace(',','.'))
-      const geschwindigkeit = 1 + Math.random() * 3
+      const temperatur = Number(String(m.temperatur).replace('°','').replace(',','.')).toFixed(2)
+      const durch = Number(String(m.durchgängigeLaufzeit).toLowerCase().replace('minuten','').trim().replace(',','.')).toFixed(3)
+      const leistung = Number(String(m.Motor.aktuelleLeistung).replace('%','').replace(',','.')).toFixed(2)
+      const betriebs = Number(String(m.Motor.betriebsminutenGesamt).toLowerCase().replace('minuten','').trim().replace(',','.')).toFixed(1)
+      const geschwindigkeit = (1 + Math.random() * 3).toFixed(2)
       await Machine.create({
         name,
         identifikation: m.identifikation,
