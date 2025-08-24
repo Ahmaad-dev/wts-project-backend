@@ -1,14 +1,28 @@
 {
   "name": "machines-api",
   "version": "1.0.0",
+  "description": "Machine monitoring API with real-time telemetry",
   "type": "module",
-  "scripts": { "dev": "node src/index.js" },
+  "main": "src/index.js",
+  "scripts": { 
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": ["machines", "telemetry", "api", "iot"],
+  "author": "",
+  "license": "ISC",
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "dependencies": {
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
+    "mssql": "^10.0.1",
     "sequelize": "^6.37.3",
     "socket.io": "^4.7.5",
-    "sqlite3": "^5.1.7"
+    "sqlite3": "^5.1.7",
+    "tedious": "^16.7.1"
   }
 }
