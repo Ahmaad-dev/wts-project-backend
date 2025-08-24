@@ -137,3 +137,49 @@ This application is optimized for deployment on Azure Arc-enabled Kubernetes clu
 ### GitHub Actions CI/CD
 
 The project includes GitHub Actions for automated deployment to Azure Container Registry with Azure Arc compatible labels.
+
+## Versioning
+
+This project uses **manual versioning** instead of `latest` tags. The version numbering starts at 1 and is incremented manually for each release.
+
+### How to Release a New Version
+
+1. **Update the version number** in `.github/workflows/backend.yml`:
+   ```yaml
+   env:
+     REGISTRY: acrswewts.azurecr.io
+     IMAGE: machines-backend
+     VERSION: "2"  # Erhöhen Sie diese Nummer für das nächste Release
+   ```
+
+2. **Update the Terraform default** in `../wts-project-infrastructure-terraform/infra/variables.tf`:
+   ```terraform
+   variable "image_tag" {
+     type        = string
+     default     = "2"  # Gleiche Nummer wie in der GitHub Action
+     description = "Container image tag"
+   }
+   ```
+
+3. **Commit and push your changes**:
+   ```bash
+   git add .
+   git commit -m "Release version 2"
+   git push origin main
+   ```
+
+4. **Deploy the infrastructure** (if needed):
+   ```bash
+   cd ../wts-project-infrastructure-terraform/infra
+   terraform plan
+   terraform apply
+   ```
+
+### Current Version: 1
+The current active version is **1**. When you want to release the next version, change it to **2**, then **3**, and so on.
+
+### Why Manual Versioning?
+- Better control over releases
+- Clear version history
+- No dependency on Git SHA or latest tags
+- Easier rollback to specific versions
