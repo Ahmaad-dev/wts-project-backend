@@ -4,8 +4,8 @@ on:
     branches: [main]
     paths:
       - "src/**"
-      - "dockerfile"
       - "initial-data.json"
+      - "dockerfile"
       - ".github/workflows/backend.yml"
   workflow_dispatch:
 
@@ -19,11 +19,9 @@ jobs:
     env:
       REGISTRY: acrswewts.azurecr.io
       IMAGE: machines-backend
-      TAG: ${{ github.sha }}
     steps:
       - uses: actions/checkout@v4
 
-      # Login via UAMI (OIDC)
       - name: Azure login (OIDC)
         uses: azure/login@v2
         with:
@@ -31,20 +29,12 @@ jobs:
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
           client-id:       ${{ secrets.AZURE_CLIENT_ID }}
 
-      # ACR Login (UAMI hat AcrPush)
       - name: ACR login
         run: az acr login -n acrswewts
 
-      # Build & Push (latest + short-sha) with Azure Arc labels
       - name: Build & push
         run: |
-          SHORT=${TAG::7}
-          docker build \
-            --label "org.opencontainers.image.source=https://github.com/${{ github.repository }}" \
-            --label "org.opencontainers.image.revision=${{ github.sha }}" \
-            --label "org.opencontainers.image.created=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
-            --label "azure.arc.compatible=true" \
-            -t $REGISTRY/$IMAGE:$SHORT \
-            -t $REGISTRY/$IMAGE:latest .
-          docker push $REGISTRY/$IMAGE:$SHORT
+          SHA=${GITHUB_SHA::7}
+          docker build -t $REGISTRY/$IMAGE:$SHA -t $REGISTRY/$IMAGE:latest .
+          docker push $REGISTRY/$IMAGE:$SHA
           docker push $REGISTRY/$IMAGE:latest
