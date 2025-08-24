@@ -4,6 +4,8 @@ import cors from 'cors'
 import { createServer } from 'http'
 import { Server } from 'socket.io'
 import { readFileSync } from 'fs'
+import path from 'path'
+import { fileURLToPath } from 'url'
 import { Op } from 'sequelize'
 import { Machine, Telemetry, initDb, sequelize } from './models.js'
 
@@ -16,11 +18,7 @@ const lastPersist = new Map()
 const app = express()
 app.use(express.json())
 
-const allowed = (process.env.ALLOWED_ORIGINS || '')
-  .split(',')
-  .map(s => s.trim())
-  .filter(Boolean)
-
+const allowed = (process.env.ALLOWED_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean)
 if (allowed.length) app.use(cors({ origin: allowed }))
 else app.use(cors())
 
@@ -29,10 +27,7 @@ app.use((req, res, next) => {
   const id = Math.random().toString(36).slice(2)
   res.setHeader('x-req-id', id)
   res.on('finish', () => {
-    console.log(JSON.stringify({
-      id, method: req.method, url: req.url,
-      status: res.statusCode, dur_ms: Date.now() - t0
-    }))
+    console.log(JSON.stringify({ id, method: req.method, url: req.url, status: res.statusCode, dur_ms: Date.now() - t0 }))
   })
   next()
 })
@@ -40,8 +35,16 @@ app.use((req, res, next) => {
 const httpServer = createServer(app)
 const io = new Server(httpServer, { cors: { origin: allowed.length ? allowed : '*' } })
 
-console.log('startup: loading seed and init db')
-const seed = JSON.parse(readFileSync(new URL('./initial-data.json', import.meta.url)))
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const seedPath = process.env.SEED_PATH || path.join(__dirname, '..', 'initial-data.json')
+console.log('startup: loading seed and init db', { seedPath })
+let seed
+try {
+  seed = JSON.parse(readFileSync(seedPath, 'utf8'))
+} catch (e) {
+  console.error('startup: failed to read seed', e)
+  process.exit(1)
+}
 try {
   await initDb(seed)
   console.log('startup: db ready')
@@ -124,9 +127,7 @@ app.get('/api/machines/:name/telemetry', async (req, res) => {
   if (!m) return res.status(404).json({ error: 'not found' })
   const where = { MachineId: m.id }
   if (since) where.createdAt = { [Op.gte]: new Date(since) }
-  const rows = await Telemetry.findAll({
-    where, order: [['createdAt', 'DESC']], limit: Math.min(+limit, 2000)
-  })
+  const rows = await Telemetry.findAll({ where, order: [['createdAt', 'DESC']], limit: Math.min(+limit, 2000) })
   res.json(rows.reverse())
 })
 
@@ -228,10 +229,10 @@ async function updateLetzteWartung(){
 }
 
 safeInterval('updateLeistungUndGeschwindigkeit', updateLeistungUndGeschwindigkeit, 1000)
-safeInterval('updateTemperatur',                updateTemperatur,                60*1000)
-safeInterval('updateDurchlaufzeit',             updateDurchlaufzeit,             20*1000)
-safeInterval('updateBetriebsminuten',           updateBetriebsminuten,           60*1000)
-safeInterval('updateLetzteWartung',             updateLetzteWartung,             24*60*60*1000)
+safeInterval('updateTemperatur', updateTemperatur, 60000)
+safeInterval('updateDurchlaufzeit', updateDurchlaufzeit, 20000)
+safeInterval('updateBetriebsminuten', updateBetriebsminuten, 60000)
+safeInterval('updateLetzteWartung', updateLetzteWartung, 86400000)
 
 app.use((err, req, res, next) => {
   console.error('unhandled_error', err)
