@@ -32,9 +32,6 @@ const io = new Server(httpServer, { cors: { origin: allowed.length ? allowed : '
 const seed = JSON.parse(readFileSync(new URL('../initial-data.json', import.meta.url)))
 await initDb(seed)
 
-// Datenbankwerte beim Start bereinigen
-await cleanupCorruptedData();
-
 // Helpers
 function clamp(v, min, max) { return Math.max(min, Math.min(max, v)) }
 function round3(n) { return Math.round(n * 1000) / 1000 }
@@ -121,81 +118,14 @@ app.post('/api/machines/:name/telemetry', async (req, res) => {
   const { temperatur, aktuelleLeistung, betriebsminutenGesamt, geschwindigkeit } = req.body
   const m = await Machine.findOne({ where: { name: req.params.name } })
   if (!m) return res.status(404).json({ error: 'not found' })
-  
-  if (temperatur !== undefined) {
-    const temp = parseFloat(temperatur);
-    if (Number.isFinite(temp) && temp >= 10 && temp <= 80) {
-      m.temperatur = fix3(temp);
-    }
-  }
-  
-  if (aktuelleLeistung !== undefined) {
-    const leistung = parseFloat(aktuelleLeistung);
-    if (Number.isFinite(leistung) && leistung >= 0 && leistung <= 100) {
-      m.aktuelleLeistung = fix3(leistung);
-    }
-  }
-  
-  if (betriebsminutenGesamt !== undefined) {
-    const betrieb = parseFloat(betriebsminutenGesamt);
-    if (Number.isFinite(betrieb) && betrieb >= 0 && betrieb <= 999999999999999) {
-      m.betriebsminutenGesamt = fix3(betrieb);
-    }
-  }
-  
-  if (geschwindigkeit !== undefined) {
-    const geschw = parseFloat(geschwindigkeit);
-    if (Number.isFinite(geschw) && geschw >= 0 && geschw <= 10) {
-      m.geschwindigkeit = fix3(geschw);
-    }
-  }
-  
+  if (temperatur !== undefined) m.temperatur = parseFloat(temperatur)
+  if (aktuelleLeistung !== undefined) m.aktuelleLeistung = parseFloat(aktuelleLeistung)
+  if (betriebsminutenGesamt !== undefined) m.betriebsminutenGesamt = parseFloat(betriebsminutenGesamt)
+  if (geschwindigkeit !== undefined) m.geschwindigkeit = parseFloat(geschwindigkeit)
   await m.save()
   await emitTelemetry(m)
   res.json({ ok: true })
 })
-
-// Datenbankwerte bereinigen
-async function cleanupCorruptedData() {
-  try {
-    const machines = await Machine.findAll();
-    for (const m of machines) {
-      let updated = false;
-      
-      if (!Number.isFinite(m.aktuelleLeistung) || m.aktuelleLeistung < 0 || m.aktuelleLeistung > 100) {
-        m.aktuelleLeistung = 50;
-        updated = true;
-      }
-      
-      if (!Number.isFinite(m.geschwindigkeit) || m.geschwindigkeit < 0 || m.geschwindigkeit > 10) {
-        m.geschwindigkeit = 2;
-        updated = true;
-      }
-      
-      if (!Number.isFinite(m.temperatur) || m.temperatur < 10 || m.temperatur > 80) {
-        m.temperatur = 40;
-        updated = true;
-      }
-      
-      if (!Number.isFinite(m.durchgaengigeLaufzeit) || m.durchgaengigeLaufzeit < 0 || m.durchgaengigeLaufzeit > 999999999) {
-        m.durchgaengigeLaufzeit = 0;
-        updated = true;
-      }
-      
-      if (!Number.isFinite(m.betriebsminutenGesamt) || m.betriebsminutenGesamt < 0 || m.betriebsminutenGesamt > 999999999999999) {
-        m.betriebsminutenGesamt = 0;
-        updated = true;
-      }
-      
-      if (updated) {
-        await m.save();
-        console.log(`Cleaned up corrupted data for machine: ${m.name}`);
-      }
-    }
-  } catch (err) {
-    console.error('Error cleaning up corrupted data:', err);
-  }
-}
 
 // Hintergrund-Jobs (stabil & ohne Overlap)
 function safeInterval(name, fn, ms) {
@@ -203,107 +133,74 @@ function safeInterval(name, fn, ms) {
   return setInterval(async () => {
     if (running) return
     running = true
-    try { 
-      await fn() 
-    } catch (err) { 
-      console.error(`[job:${name}]`, err.message || err);
-      // Bei wiederholten Fehlern, versuche die Datenbank zu bereinigen
-      if (err.message && err.message.includes('ERR_OUT_OF_RANGE')) {
-        console.log(`Attempting to cleanup corrupted data due to range error in job: ${name}`);
-        try {
-          await cleanupCorruptedData();
-        } catch (cleanupErr) {
-          console.error('Failed to cleanup corrupted data:', cleanupErr.message);
-        }
-      }
-    }
+    try { await fn() } catch (err) { console.error(`[job:${name}]`, err) }
     finally { running = false }
   }, ms)
 }
 
-function fix3(n) { 
-  if (!Number.isFinite(n)) return 0;
-  const fixed = Number(Number(n).toFixed(3));
-  if (!Number.isFinite(fixed)) return 0;
-  return fixed;
-}
-
-async function updateLeistungUndGeschwindigkeit(){
-  const rows = await Machine.findAll();
-  const now = Date.now();
+async function updateTemperatur(){
+  const rows = await Machine.findAll()
   for (const m of rows){
-    const dL = (Math.random()*2) - 1;
-    const dV = (Math.random()*0.2) - 0.1;
-
-    const currentLeistung = Number.isFinite(m.aktuelleLeistung) ? m.aktuelleLeistung : 50;
-    const currentGeschwindigkeit = Number.isFinite(m.geschwindigkeit) ? m.geschwindigkeit : 2;
-
-    m.aktuelleLeistung = fix3( clamp(currentLeistung + dL, 0, 100) );
-    m.geschwindigkeit  = fix3( clamp(currentGeschwindigkeit + dV, 0, 10) );
-
-    // Zusätzliche Sicherheitsprüfung
-    if (!Number.isFinite(m.aktuelleLeistung) || m.aktuelleLeistung < 0 || m.aktuelleLeistung > 100) {
-      m.aktuelleLeistung = 50;
-    }
-    if (!Number.isFinite(m.geschwindigkeit) || m.geschwindigkeit < 0 || m.geschwindigkeit > 10) {
-      m.geschwindigkeit = 2;
-    }
-
-    const last = lastPersist.get(m.id) || 0;
+    const drift = Math.random() - 0.5
+    m.temperatur = clamp((m.temperatur ?? 40) + drift, 10, 80)
+    // sanitisieren
+    if (!Number.isFinite(m.temperatur)) m.temperatur = 40
+    const last = lastPersist.get(m.id) || 0
+    const now = Date.now()
     if (now - last >= PERSIST_EVERY_MS) {
-      await m.save();
-      await emitTelemetry(m);
-      lastPersist.set(m.id, now);
+      await m.save()
+      await emitTelemetry(m)
+      lastPersist.set(m.id, now)
     } else {
-      await emitSocketOnly(m);
+      await emitSocketOnly(m)
     }
   }
 }
-async function updateTemperatur(){
-  const rows = await Machine.findAll();
+
+async function updateLeistungUndGeschwindigkeit(){
+  const rows = await Machine.findAll()
+  const now = Date.now()
   for (const m of rows){
-    const drift = Math.random() - 0.5;
-    const currentTemp = Number.isFinite(m.temperatur) ? m.temperatur : 40;
-    m.temperatur = fix3( clamp(currentTemp + drift, 10, 80) );
-    
-    // Zusätzliche Sicherheitsprüfung
-    if (!Number.isFinite(m.temperatur) || m.temperatur < 10 || m.temperatur > 80) {
-      m.temperatur = 40;
+    const dL = (Math.random()*2) - 1
+    const dV = (Math.random()*0.2) - 0.1
+    m.aktuelleLeistung = clamp((m.aktuelleLeistung ?? 50) + dL, 0, 100)
+    m.geschwindigkeit = clamp((m.geschwindigkeit ?? 2) + dV, 0, 10)
+    // sanitisieren
+    if (!Number.isFinite(m.aktuelleLeistung)) m.aktuelleLeistung = 0
+    if (!Number.isFinite(m.geschwindigkeit))  m.geschwindigkeit  = 0
+
+    const last = lastPersist.get(m.id) || 0
+    if (now - last >= PERSIST_EVERY_MS) {
+      await m.save()
+      await emitTelemetry(m)
+      lastPersist.set(m.id, now)
+    } else {
+      await emitSocketOnly(m)
     }
-    
-    await m.save();
-    await emitTelemetry(m);
   }
 }
 
 async function updateDurchlaufzeit(){
-  const rows = await Machine.findAll();
+  const rows = await Machine.findAll()
   for (const m of rows){
-    const currentLaufzeit = Number.isFinite(m.durchgaengigeLaufzeit) ? m.durchgaengigeLaufzeit : 0;
-    m.durchgaengigeLaufzeit = fix3(currentLaufzeit + (20/60));
-    
-    // Sicherheitsprüfung für sehr große Werte
-    if (!Number.isFinite(m.durchgaengigeLaufzeit) || m.durchgaengigeLaufzeit > 999999999) {
-      m.durchgaengigeLaufzeit = 0;
-    }
-    
-    await m.save();
+    m.durchgaengigeLaufzeit = (m.durchgaengigeLaufzeit ?? 0) + (20/60)
+    await m.save()
   }
 }
 
 async function updateBetriebsminuten(){
-  const rows = await Machine.findAll();
+  const rows = await Machine.findAll()
+  const now = Date.now()
   for (const m of rows){
-    const currentBetrieb = Number.isFinite(m.betriebsminutenGesamt) ? m.betriebsminutenGesamt : 0;
-    m.betriebsminutenGesamt = fix3(currentBetrieb + 1);
-    
-    // Sicherheitsprüfung für sehr große Werte  
-    if (!Number.isFinite(m.betriebsminutenGesamt) || m.betriebsminutenGesamt > 999999999999999) {
-      m.betriebsminutenGesamt = 0;
+    m.betriebsminutenGesamt = (m.betriebsminutenGesamt ?? 0) + 1
+    const last = lastPersist.get(m.id) || 0
+    if (now - last >= PERSIST_EVERY_MS) {
+      await m.save()
+      await emitTelemetry(m)
+      lastPersist.set(m.id, now)
+    } else {
+      await emitSocketOnly(m)
     }
-    
-    await m.save();
-    await emitTelemetry(m);
   }
 }
 
