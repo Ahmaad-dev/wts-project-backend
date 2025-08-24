@@ -28,9 +28,7 @@ export const Machine = sequelize.define('Machine', {
   betriebsminutenGesamt: DataTypes.DECIMAL(12,1),
   geschwindigkeit: DataTypes.DECIMAL(5,2)
 }, {
-  indexes: [
-    { unique: true, fields: ['name'], name: 'ux_machines_name' }
-  ],
+  indexes: [{ unique: true, fields: ['name'], name: 'ux_machines_name' }],
   timestamps: false
 })
 
@@ -40,10 +38,7 @@ export const Telemetry = sequelize.define('Telemetry', {
   betriebsminutenGesamt: DataTypes.DECIMAL(12,1),
   geschwindigkeit: DataTypes.DECIMAL(5,2)
 }, {
-  indexes: [
-    { fields: ['MachineId'] },
-    { fields: ['createdAt'] }
-  ]
+  indexes: [{ fields: ['MachineId'] }, { fields: ['createdAt'] }]
 })
 
 Machine.hasMany(Telemetry, { onDelete: 'CASCADE' })
@@ -52,6 +47,7 @@ Telemetry.belongsTo(Machine)
 export async function initDb(seed) {
   const doAlter = process.env.DB_SYNC_ALTER === '1'
   await sequelize.sync({ alter: doAlter })
+
   const count = await Machine.count()
   if (count === 0 && seed) {
     for (const [name, m] of Object.entries(seed)) {

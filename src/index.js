@@ -42,15 +42,13 @@ let seed
 try {
   seed = JSON.parse(readFileSync(seedPath, 'utf8'))
 } catch (e) {
-  console.error('startup: failed to read seed', e)
-  process.exit(1)
+  console.error('startup: failed to read seed', e); process.exit(1)
 }
 try {
   await initDb(seed)
   console.log('startup: db ready')
 } catch (e) {
-  console.error('startup: initDb failed', e)
-  process.exit(1)
+  console.error('startup: initDb failed', e); process.exit(1)
 }
 
 function clamp(v, min, max) { return Math.max(min, Math.min(max, v)) }
@@ -144,12 +142,24 @@ app.post('/api/machines/:name/telemetry', async (req, res) => {
   const { temperatur, aktuelleLeistung, betriebsminutenGesamt, geschwindigkeit } = req.body
   const m = await Machine.findOne({ where: { name: req.params.name } })
   if (!m) return res.status(404).json({ error: 'not found' })
-  if (temperatur !== undefined) m.temperatur = fx(temperatur, 2)
-  if (aktuelleLeistung !== undefined) m.aktuelleLeistung = fx(aktuelleLeistung, 2)
-  if (betriebsminutenGesamt !== undefined) m.betriebsminutenGesamt = fx(betriebsminutenGesamt, 1)
-  if (geschwindigkeit !== undefined) m.geschwindigkeit = fx(geschwindigkeit, 2)
-  await m.save()
-  await emitTelemetry(m)
+
+  const t = temperatur !== undefined ? fx(temperatur, 2) : null
+  const a = aktuelleLeistung !== undefined ? fx(aktuelleLeistung, 2) : null
+  const b = betriebsminutenGesamt !== undefined ? fx(betriebsminutenGesamt, 1) : null
+  const v = geschwindigkeit !== undefined ? fx(geschwindigkeit, 2) : null
+
+  await sequelize.query(
+    'UPDATE [Machines] SET ' +
+    (t !== null ? 'temperatur = CAST(? AS DECIMAL(5,2)),' : '') +
+    (a !== null ? 'aktuelleLeistung = CAST(? AS DECIMAL(5,2)),' : '') +
+    (b !== null ? 'betriebsminutenGesamt = CAST(? AS DECIMAL(12,1)),' : '') +
+    (v !== null ? 'geschwindigkeit = CAST(? AS DECIMAL(5,2)),' : '') +
+    ' [name] = [name] WHERE [id] = ?',
+    { replacements: [ ...[t,a,b,v].filter(x => x !== null), m.id ] }
+  )
+
+  const fresh = await Machine.findByPk(m.id)
+  await emitTelemetry(fresh)
   res.json({ ok: true })
 })
 
@@ -167,17 +177,13 @@ async function updateTemperatur(){
   const rows = await Machine.findAll()
   for (const m of rows){
     const drift = Math.random() - 0.5
-    const v = clamp(n(m.temperatur ?? 40) + drift, 10, 80)
-    m.temperatur = fx(v, 2)
-    const last = lastPersist.get(m.id) || 0
-    const now = Date.now()
-    if (now - last >= PERSIST_EVERY_MS) {
-      await m.save()
-      await emitTelemetry(m)
-      lastPersist.set(m.id, now)
-    } else {
-      await emitSocketOnly(m)
-    }
+    const t = fx(clamp(n(m.temperatur ?? 40) + drift, 10, 80), 2)
+    await sequelize.query(
+      'UPDATE [Machines] SET temperatur = CAST(? AS DECIMAL(5,2)) WHERE id = ?',
+      { replacements: [t, m.id] }
+    )
+    const fresh = await Machine.findByPk(m.id)
+    await emitTelemetry(fresh)
   }
 }
 
@@ -187,16 +193,20 @@ async function updateLeistungUndGeschwindigkeit(){
   for (const m of rows){
     const dL = (Math.random()*2) - 1
     const dV = (Math.random()*0.2) - 0.1
-    const leistung = clamp(n(m.aktuelleLeistung ?? 50) + dL, 0, 100)
-    const v = clamp(n(m.geschwindigkeit ?? 2) + dV, 0, 10)
-    m.aktuelleLeistung = fx(leistung, 2)
-    m.geschwindigkeit = fx(v, 2)
+    const a = fx(clamp(n(m.aktuelleLeistung ?? 50) + dL, 0, 100), 2)
+    const v = fx(clamp(n(m.geschwindigkeit ?? 2) + dV, 0, 10), 2)
+
     const last = lastPersist.get(m.id) || 0
     if (now - last >= PERSIST_EVERY_MS) {
-      await m.save()
-      await emitTelemetry(m)
+      await sequelize.query(
+        'UPDATE [Machines] SET aktuelleLeistung = CAST(? AS DECIMAL(5,2)), geschwindigkeit = CAST(? AS DECIMAL(5,2)) WHERE id = ?',
+        { replacements: [a, v, m.id] }
+      )
+      const fresh = await Machine.findByPk(m.id)
+      await emitTelemetry(fresh)
       lastPersist.set(m.id, now)
     } else {
+      m.aktuelleLeistung = a; m.geschwindigkeit = v
       await emitSocketOnly(m)
     }
   }
@@ -205,9 +215,11 @@ async function updateLeistungUndGeschwindigkeit(){
 async function updateDurchlaufzeit(){
   const rows = await Machine.findAll()
   for (const m of rows){
-    const v = n(m.durchgaengigeLaufzeit ?? 0) + (20/60)
-    m.durchgaengigeLaufzeit = fx(v, 3)
-    await m.save()
+    const d = fx(n(m.durchgaengigeLaufzeit ?? 0) + (20/60), 3)
+    await sequelize.query(
+      'UPDATE [Machines] SET durchgaengigeLaufzeit = CAST(? AS DECIMAL(12,3)) WHERE id = ?',
+      { replacements: [d, m.id] }
+    )
   }
 }
 
@@ -215,14 +227,18 @@ async function updateBetriebsminuten(){
   const rows = await Machine.findAll()
   const now = Date.now()
   for (const m of rows){
-    const v = n(m.betriebsminutenGesamt ?? 0) + 1
-    m.betriebsminutenGesamt = fx(v, 1)
+    const b = fx(n(m.betriebsminutenGesamt ?? 0) + 1, 1)
     const last = lastPersist.get(m.id) || 0
     if (now - last >= PERSIST_EVERY_MS) {
-      await m.save()
-      await emitTelemetry(m)
+      await sequelize.query(
+        'UPDATE [Machines] SET betriebsminutenGesamt = CAST(? AS DECIMAL(12,1)) WHERE id = ?',
+        { replacements: [b, m.id] }
+      )
+      const fresh = await Machine.findByPk(m.id)
+      await emitTelemetry(fresh)
       lastPersist.set(m.id, now)
     } else {
+      m.betriebsminutenGesamt = b
       await emitSocketOnly(m)
     }
   }
@@ -234,8 +250,10 @@ async function updateLetzteWartung(){
     if (!m.letzteWartung || String(m.letzteWartung).toLowerCase()==='unknown') continue
     const dt = ddmmyyyyToDate(m.letzteWartung)
     const next = new Date(dt.getTime() + 24*60*60*1000)
-    m.letzteWartung = dateToDDMMYYYY(next)
-    await m.save()
+    await sequelize.query(
+      'UPDATE [Machines] SET letzteWartung = ? WHERE id = ?',
+      { replacements: [dateToDDMMYYYY(next), m.id] }
+    )
   }
 }
 
