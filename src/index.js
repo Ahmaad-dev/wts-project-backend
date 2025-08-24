@@ -157,50 +157,55 @@ async function updateTemperatur(){
   }
 }
 
-async function updateLeistungUndGeschwindigkeit(){
-  const rows = await Machine.findAll()
-  const now = Date.now()
-  for (const m of rows){
-    const dL = (Math.random()*2) - 1
-    const dV = (Math.random()*0.2) - 0.1
-    m.aktuelleLeistung = clamp((m.aktuelleLeistung ?? 50) + dL, 0, 100)
-    m.geschwindigkeit = clamp((m.geschwindigkeit ?? 2) + dV, 0, 10)
-    // sanitisieren
-    if (!Number.isFinite(m.aktuelleLeistung)) m.aktuelleLeistung = 0
-    if (!Number.isFinite(m.geschwindigkeit))  m.geschwindigkeit  = 0
+function fix3(n) { return Number(Number(n).toFixed(3)); }
 
-    const last = lastPersist.get(m.id) || 0
+async function updateLeistungUndGeschwindigkeit(){
+  const rows = await Machine.findAll();
+  const now = Date.now();
+  for (const m of rows){
+    const dL = (Math.random()*2) - 1;
+    const dV = (Math.random()*0.2) - 0.1;
+
+    m.aktuelleLeistung = fix3( clamp((m.aktuelleLeistung ?? 50) + dL, 0, 100) );
+    m.geschwindigkeit  = fix3( clamp((m.geschwindigkeit  ??  2) + dV, 0, 10) );
+
+    if (!Number.isFinite(m.aktuelleLeistung)) m.aktuelleLeistung = 0;
+    if (!Number.isFinite(m.geschwindigkeit))  m.geschwindigkeit  = 0;
+
+    const last = lastPersist.get(m.id) || 0;
     if (now - last >= PERSIST_EVERY_MS) {
-      await m.save()
-      await emitTelemetry(m)
-      lastPersist.set(m.id, now)
+      await m.save();
+      await emitTelemetry(m);
+      lastPersist.set(m.id, now);
     } else {
-      await emitSocketOnly(m)
+      await emitSocketOnly(m);
     }
+  }
+}
+async function updateTemperatur(){
+  const rows = await Machine.findAll();
+  for (const m of rows){
+    const drift = Math.random() - 0.5;
+    m.temperatur = fix3( clamp((m.temperatur ?? 40) + drift, 10, 80) );
+    await m.save();
+    await emitTelemetry(m);
   }
 }
 
 async function updateDurchlaufzeit(){
-  const rows = await Machine.findAll()
+  const rows = await Machine.findAll();
   for (const m of rows){
-    m.durchgaengigeLaufzeit = (m.durchgaengigeLaufzeit ?? 0) + (20/60)
-    await m.save()
+    m.durchgaengigeLaufzeit = fix3((m.durchgaengigeLaufzeit ?? 0) + (20/60));
+    await m.save();
   }
 }
 
 async function updateBetriebsminuten(){
-  const rows = await Machine.findAll()
-  const now = Date.now()
+  const rows = await Machine.findAll();
   for (const m of rows){
-    m.betriebsminutenGesamt = (m.betriebsminutenGesamt ?? 0) + 1
-    const last = lastPersist.get(m.id) || 0
-    if (now - last >= PERSIST_EVERY_MS) {
-      await m.save()
-      await emitTelemetry(m)
-      lastPersist.set(m.id, now)
-    } else {
-      await emitSocketOnly(m)
-    }
+    m.betriebsminutenGesamt = fix3((m.betriebsminutenGesamt ?? 0) + 1);
+    await m.save();
+    await emitTelemetry(m);
   }
 }
 
