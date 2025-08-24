@@ -22,11 +22,11 @@ export const Machine = sequelize.define('Machine', {
   name: { type: DataTypes.STRING, allowNull: false },
   identifikation: DataTypes.STRING,
   letzteWartung: DataTypes.STRING,
-  durchgaengigeLaufzeit: DataTypes.FLOAT,
-  temperatur: DataTypes.FLOAT,
-  aktuelleLeistung: DataTypes.FLOAT,
-  betriebsminutenGesamt: DataTypes.FLOAT,
-  geschwindigkeit: DataTypes.FLOAT
+  durchgaengigeLaufzeit: DataTypes.DECIMAL(12,3),
+  temperatur: DataTypes.DECIMAL(5,2),
+  aktuelleLeistung: DataTypes.DECIMAL(5,2),
+  betriebsminutenGesamt: DataTypes.DECIMAL(12,1),
+  geschwindigkeit: DataTypes.DECIMAL(5,2)
 }, {
   indexes: [
     { unique: true, fields: ['name'], name: 'ux_machines_name' }
@@ -35,10 +35,10 @@ export const Machine = sequelize.define('Machine', {
 })
 
 export const Telemetry = sequelize.define('Telemetry', {
-  temperatur: DataTypes.FLOAT,
-  aktuelleLeistung: DataTypes.FLOAT,
-  betriebsminutenGesamt: DataTypes.FLOAT,
-  geschwindigkeit: DataTypes.FLOAT
+  temperatur: DataTypes.DECIMAL(5,2),
+  aktuelleLeistung: DataTypes.DECIMAL(5,2),
+  betriebsminutenGesamt: DataTypes.DECIMAL(12,1),
+  geschwindigkeit: DataTypes.DECIMAL(5,2)
 }, {
   indexes: [
     { fields: ['MachineId'] },
@@ -50,7 +50,8 @@ Machine.hasMany(Telemetry, { onDelete: 'CASCADE' })
 Telemetry.belongsTo(Machine)
 
 export async function initDb(seed) {
-  await sequelize.sync()
+  const doAlter = process.env.DB_SYNC_ALTER === '1'
+  await sequelize.sync({ alter: doAlter })
   const count = await Machine.count()
   if (count === 0 && seed) {
     for (const [name, m] of Object.entries(seed)) {
