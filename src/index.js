@@ -8,15 +8,22 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 import { Op } from 'sequelize'
 import { Machine, Telemetry, initDb, sequelize } from './models.js'
+import swaggerUi from 'swagger-ui-express'
 
 process.on('unhandledRejection', (e) => console.error('unhandledRejection', e))
 process.on('uncaughtException', (e) => console.error('uncaughtException', e))
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 const PERSIST_EVERY_MS = parseInt(process.env.TELEMETRY_DB_SAVE_MS || '5000', 10)
 const lastPersist = new Map()
 
 const app = express()
 app.use(express.json())
+
+const openapi = JSON.parse(readFileSync(path.join(__dirname, '..', 'openapi.json'), 'utf8'))
+app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(openapi))
+
 
 const allowed = (process.env.ALLOWED_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean)
 const isDev = process.env.NODE_ENV !== 'production'
@@ -42,9 +49,8 @@ app.use((req, res, next) => {
 })
 
 const httpServer = createServer(app)
-const io = new Server(httpServer, { cors: { origin: allowed.length ? allowed : '*' } })
+const io = new Server(httpServer, { cors: { origin: allowed.length ? allowed : true } })
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const seedPath = process.env.SEED_PATH || path.join(__dirname, '..', 'initial-data.json')
 console.log('startup: loading seed and init db', { seedPath })
 let seed
