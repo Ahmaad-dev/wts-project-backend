@@ -329,3 +329,44 @@ if (process.env.ENABLE_DEBUG === '1') {
   })
 }
 
+const METRICS = [
+  { key: 'temperatur', label: 'Temperatur', unit: '°C', description: 'Aktuelle Temperatur der Maschine' },
+  { key: 'aktuelleLeistung', label: 'Aktuelle Leistung', unit: '%', description: 'Prozentuale Auslastung' },
+  { key: 'betriebsminutenGesamt', label: 'Betriebsminuten gesamt', unit: 'min', description: 'Gesamte Betriebszeit' },
+  { key: 'geschwindigkeit', label: 'Geschwindigkeit', unit: 'm/s', description: 'Aktuelle Geschwindigkeit' },
+]
+
+app.get('/api/machines/names', async (req, res) => {
+  const rows = await Machine.findAll({ attributes: ['name'], order: [['name', 'ASC']] })
+  res.json({ names: rows.map(r => r.name) })
+})
+
+app.get('/api/meta/metrics', (req, res) => {
+  res.json({ metrics: METRICS })
+})
+
+app.get('/api/meta/formats/datetime', (req, res) => {
+  res.json({
+    format: 'ISO 8601 (RFC 3339)',
+    examples: ['2025-08-29T12:34:56Z', '2025-08-29T12:34:56+02:00'],
+    note: "UTC 'Z' empfohlen.",
+    now: new Date().toISOString()
+  })
+})
+
+app.get('/api/machines/:name/metrics/:key', async (req, res) => {
+  const { name, key } = req.params
+  const { since, limit = 50 } = req.query
+  if (!METRICS.some(m => m.key === key)) return res.status(400).json({ error: 'invalid_metric' })
+  const m = await Machine.findOne({ where: { name } })
+  if (!m) return res.status(404).json({ error: 'not found' })
+  const where = { MachineId: m.id }
+  if (since) where.createdAt = { [Op.gte]: new Date(since) }
+  const rows = await Telemetry.findAll({
+    where,
+    order: [['createdAt', 'DESC']],
+    limit: Math.min(parseInt(limit, 10) || 50, 2000)
+  })
+  const out = rows.reverse().map(r => ({ createdAt: r.createdAt, value: Number(r[key]) }))
+  res.json(out)
+})

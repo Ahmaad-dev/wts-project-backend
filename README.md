@@ -14,11 +14,11 @@ Ein Node.js-Backend für Maschinen-Monitoring mit Echtzeit-Telemetrie.
 ## Live
 - **Frontend:** https://saswewtsz1.z1.web.core.windows.net/  
 - **Backend (FQDN – aktuelle Revision):**  
-  `https://ca-swe-wts-backend--0000006.happymeadow-a2b0a3fc.swedencentral.azurecontainerapps.io`
+  `ca-swe-wts-backend--0000007.happymeadow-a2b0a3fc.swedencentral.azurecontainerapps.io`
 - **API-Doku (Swagger UI):**  
-  `https://ca-swe-wts-backend--0000006.happymeadow-a2b0a3fc.swedencentral.azurecontainerapps.io/api/docs`
+  `ca-swe-wts-backend--0000007.happymeadow-a2b0a3fc.swedencentral.azurecontainerapps.io/api/docs`
 - **OpenAPI JSON (für Swagger Editor):**  
-  `https://ca-swe-wts-backend--0000006.happymeadow-a2b0a3fc.swedencentral.azurecontainerapps.io/api/openapi.json`
+  `ca-swe-wts-backend--0000007.happymeadow-a2b0a3fc.swedencentral.azurecontainerapps.io/api/openapi.json`
 
 > Hinweis: Der FQDN ändert sich bei neuen Revisionen. Mit `az containerapp show -g <rg> -n <app> --query properties.latestRevisionFqdn -o tsv` holst du den aktuellen.
 

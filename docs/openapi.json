@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "WTS Machines API",
-    "version": "1.0.1",
+    "version": "1.1.0",
     "description": "Backend für Maschinen-Monitoring mit Azure SQL und Socket.IO."
   },
   "servers": [
@@ -17,7 +17,8 @@
   ],
   "tags": [
     { "name": "Health" },
-    { "name": "Machines" }
+    { "name": "Machines" },
+    { "name": "Meta" }
   ],
   "paths": {
     "/health": {
@@ -25,10 +26,7 @@
         "tags": ["Health"],
         "summary": "Liveness",
         "responses": {
-          "200": {
-            "description": "OK",
-            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Ok" } } }
-          }
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Ok" } } } }
         }
       }
     },
@@ -37,14 +35,8 @@
         "tags": ["Health"],
         "summary": "Readiness (DB)",
         "responses": {
-          "200": {
-            "description": "DB erreichbar",
-            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Ok" } } }
-          },
-          "503": {
-            "description": "DB nicht erreichbar",
-            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Ok" } } }
-          }
+          "200": { "description": "DB erreichbar", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Ok" } } } },
+          "503": { "description": "DB nicht erreichbar", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Ok" } } } }
         }
       }
     },
@@ -57,16 +49,23 @@
             "description": "Liste",
             "content": {
               "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "machines": {
-                      "type": "array",
-                      "items": { "$ref": "#/components/schemas/MachineBasic" }
-                    }
-                  },
-                  "required": ["machines"]
-                }
+                "schema": { "type": "object", "properties": { "machines": { "type": "array", "items": { "$ref": "#/components/schemas/MachineBasic" } } }, "required": ["machines"] }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/machines/names": {
+      "get": {
+        "tags": ["Machines"],
+        "summary": "Alle Maschinennamen",
+        "responses": {
+          "200": {
+            "description": "Namen",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/MachineNames" }
               }
             }
           }
@@ -81,18 +80,8 @@
           { "name": "name", "in": "path", "required": true, "schema": { "type": "string" } }
         ],
         "responses": {
-          "200": {
-            "description": "Details",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/MachineDetailDisplay" }
-              }
-            }
-          },
-          "404": {
-            "description": "Nicht gefunden",
-            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
-          }
+          "200": { "description": "Details", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/MachineDetailDisplay" } } } },
+          "404": { "description": "Nicht gefunden", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
         }
       }
     },
@@ -106,21 +95,8 @@
           { "name": "limit", "in": "query", "required": false, "schema": { "type": "integer", "minimum": 1, "maximum": 2000, "default": 500 } }
         ],
         "responses": {
-          "200": {
-            "description": "Historie",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": { "$ref": "#/components/schemas/TelemetryItemOutput" }
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Nicht gefunden",
-            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
-          }
+          "200": { "description": "Historie", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/TelemetryItemOutput" } } } } },
+          "404": { "description": "Nicht gefunden", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
         }
       },
       "post": {
@@ -139,9 +115,44 @@
         }
       }
     },
+    "/api/machines/{name}/metrics/{key}": {
+      "get": {
+        "tags": ["Machines"],
+        "summary": "Gezielte Metrik für eine Maschine",
+        "parameters": [
+          { "name": "name", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "key", "in": "path", "required": true, "schema": { "$ref": "#/components/schemas/MetricKey" } },
+          { "name": "since", "in": "query", "required": false, "schema": { "type": "string", "format": "date-time" } },
+          { "name": "limit", "in": "query", "required": false, "schema": { "type": "integer", "minimum": 1, "maximum": 2000, "default": 50 } }
+        ],
+        "responses": {
+          "200": { "description": "Werte", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/MetricPoint" } } } } },
+          "400": { "description": "Ungültiger Metrik-Schlüssel", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "404": { "description": "Maschine nicht gefunden", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/api/meta/metrics": {
+      "get": {
+        "tags": ["Meta"],
+        "summary": "Alle abfragbaren Metriken",
+        "responses": {
+          "200": { "description": "Liste", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/MetricsList" } } } }
+        }
+      }
+    },
+    "/api/meta/formats/datetime": {
+      "get": {
+        "tags": ["Meta"],
+        "summary": "Formatbeschreibung für date-time (since)",
+        "responses": {
+          "200": { "description": "Format", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DateTimeFormat" } } } }
+        }
+      }
+    },
     "/api/openapi.json": {
       "get": {
-        "tags": ["Health"],
+        "tags": ["Meta"],
         "summary": "Rohes OpenAPI-Dokument",
         "responses": {
           "200": { "description": "JSON", "content": { "application/json": { "schema": { "type": "object" } } } }
@@ -170,6 +181,11 @@
           "durchgängigeLaufzeit": { "type": "number" }
         },
         "required": ["name", "identifikation", "letzteWartung", "durchgängigeLaufzeit"]
+      },
+      "MachineNames": {
+        "type": "object",
+        "properties": { "names": { "type": "array", "items": { "type": "string" } } },
+        "required": ["names"]
       },
       "MachineDetailDisplay": {
         "type": "object",
@@ -211,6 +227,47 @@
         },
         "additionalProperties": false,
         "minProperties": 1
+      },
+      "MetricKey": {
+        "type": "string",
+        "enum": ["temperatur", "aktuelleLeistung", "betriebsminutenGesamt", "geschwindigkeit"]
+      },
+      "MetricPoint": {
+        "type": "object",
+        "properties": {
+          "createdAt": { "type": "string", "format": "date-time" },
+          "value": { "type": "number" }
+        },
+        "required": ["createdAt", "value"]
+      },
+      "MetricsList": {
+        "type": "object",
+        "properties": {
+          "metrics": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "key": { "$ref": "#/components/schemas/MetricKey" },
+                "label": { "type": "string" },
+                "unit": { "type": "string" },
+                "description": { "type": "string" }
+              },
+              "required": ["key", "label", "unit"]
+            }
+          }
+        },
+        "required": ["metrics"]
+      },
+      "DateTimeFormat": {
+        "type": "object",
+        "properties": {
+          "format": { "type": "string", "example": "ISO 8601 (RFC 3339)" },
+          "examples": { "type": "array", "items": { "type": "string" }, "example": ["2025-08-29T12:34:56Z", "2025-08-29T12:34:56+02:00"] },
+          "note": { "type": "string", "example": "UTC 'Z' empfohlen. Beispiel: 2025-08-29T12:34:56Z" },
+          "now": { "type": "string", "format": "date-time" }
+        },
+        "required": ["format", "examples", "now"]
       }
     }
   }
