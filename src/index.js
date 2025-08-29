@@ -19,8 +19,17 @@ const app = express()
 app.use(express.json())
 
 const allowed = (process.env.ALLOWED_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean)
-if (allowed.length) app.use(cors({ origin: allowed }))
-else app.use(cors())
+const isDev = process.env.NODE_ENV !== 'production'
+app.use(cors({
+  origin: (origin, cb) => {
+    if (isDev) return cb(null, true)
+    if (!origin) return cb(null, true)
+    if (allowed.includes(origin)) return cb(null, true)
+    cb(new Error('CORS'), false)
+  },
+  methods: ['GET','POST'],
+}))
+
 
 app.use((req, res, next) => {
   const t0 = Date.now()
@@ -87,12 +96,12 @@ async function emitTelemetry(m) {
   })
 }
 
-app.get('/healthz', (req, res) => res.send('ok'))
-app.get('/health', (req, res) => res.send('ok'))
+app.get('/health', (req, res) => res.status(200).json({ ok: true }))
 app.get('/readyz', async (req, res) => {
-  try { await sequelize.authenticate(); res.send('ok') }
-  catch { res.status(500).send('db-error') }
+  try { await sequelize.authenticate(); res.json({ ok: true }) }
+  catch (e) { res.status(503).json({ ok: false }) }
 })
+
 
 app.get('/api/machines/basic', async (req, res) => {
   const rows = await Machine.findAll({ order: [['name', 'ASC']] })
@@ -285,7 +294,7 @@ io.on('connection', s => {
   console.log(JSON.stringify({ event: 'socket_connected', id: s.id, origin: s.handshake.headers.origin || null }))
 })
 
-if (process.env.DEBUG === '1') {
+if (process.env.ENABLE_DEBUG === '1') {
   app.get('/debug/env', (req, res) => {
     const mask = v => (v ? `${String(v).slice(0,2)}***` : null)
     res.json({
@@ -298,6 +307,7 @@ if (process.env.DEBUG === '1') {
   })
   app.get('/debug/db', async (req, res) => {
     try { await sequelize.authenticate(); res.json({ ok: true }) }
-    catch (e) { res.status(500).json({ ok: false, error: String(e) }) }
+    catch { res.status(500).json({ ok: false }) }
   })
 }
+
