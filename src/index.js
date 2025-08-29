@@ -25,8 +25,18 @@ const app = express()
 app.use(express.json())
 
 let openapi = null
-try { openapi = JSON.parse(readFileSync(specPath, 'utf8')) } catch {}
-if (openapi) app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(openapi))
+try {
+  openapi = JSON.parse(readFileSync(path.join(__dirname, '..', 'openapi.json'), 'utf8'))
+} catch {}
+
+if (openapi) {
+  app.get('/api/openapi.json', (req, res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*')
+    res.json(openapi)
+  })
+  app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(openapi))
+}
+
 
 const allowed = (process.env.ALLOWED_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean)
 const isDev = process.env.NODE_ENV !== 'production'
