@@ -14,6 +14,9 @@ process.on('unhandledRejection', (e) => console.error('unhandledRejection', e))
 process.on('uncaughtException', (e) => console.error('uncaughtException', e))
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const rootDir = path.join(__dirname, '..')
+const specPath = process.env.OPENAPI_PATH || path.join(rootDir, 'openapi.json')
+const seedPath = process.env.SEED_PATH || path.join(rootDir, 'initial-data.json')
 
 const PERSIST_EVERY_MS = parseInt(process.env.TELEMETRY_DB_SAVE_MS || '5000', 10)
 const lastPersist = new Map()
@@ -21,9 +24,9 @@ const lastPersist = new Map()
 const app = express()
 app.use(express.json())
 
-const openapi = JSON.parse(readFileSync(path.join(__dirname, '..', 'openapi.json'), 'utf8'))
-app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(openapi))
-
+let openapi = null
+try { openapi = JSON.parse(readFileSync(specPath, 'utf8')) } catch {}
+if (openapi) app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(openapi))
 
 const allowed = (process.env.ALLOWED_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean)
 const isDev = process.env.NODE_ENV !== 'production'
@@ -36,7 +39,6 @@ app.use(cors({
   },
   methods: ['GET','POST'],
 }))
-
 
 app.use((req, res, next) => {
   const t0 = Date.now()
@@ -51,7 +53,6 @@ app.use((req, res, next) => {
 const httpServer = createServer(app)
 const io = new Server(httpServer, { cors: { origin: allowed.length ? allowed : true } })
 
-const seedPath = process.env.SEED_PATH || path.join(__dirname, '..', 'initial-data.json')
 console.log('startup: loading seed and init db', { seedPath })
 let seed
 try {
@@ -65,6 +66,7 @@ try {
 } catch (e) {
   console.error('startup: initDb failed', e); process.exit(1)
 }
+
 
 function clamp(v, min, max) { return Math.max(min, Math.min(max, v)) }
 function n(v) { const x = typeof v === 'number' ? v : parseFloat(v); return Number.isFinite(x) ? x : 0 }
