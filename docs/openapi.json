@@ -2,11 +2,18 @@
   "openapi": "3.0.3",
   "info": {
     "title": "WTS Machines API",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "description": "Backend für Maschinen-Monitoring mit Azure SQL und Socket.IO."
   },
   "servers": [
-    { "url": "https://{host}", "variables": { "host": { "default": "example.com" } } }
+    {
+      "url": "https://{host}",
+      "variables": {
+        "host": {
+          "default": "ca-swe-wts-backend--0000006.happymeadow-a2b0a3fc.swedencentral.azurecontainerapps.io"
+        }
+      }
+    }
   ],
   "tags": [
     { "name": "Health" },
@@ -20,12 +27,7 @@
         "responses": {
           "200": {
             "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/Ok" },
-                "examples": { "ok": { "value": { "ok": true } } }
-              }
-            }
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Ok" } } }
           }
         }
       }
@@ -37,21 +39,11 @@
         "responses": {
           "200": {
             "description": "DB erreichbar",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/Ok" },
-                "examples": { "ok": { "value": { "ok": true } } }
-              }
-            }
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Ok" } } }
           },
           "503": {
             "description": "DB nicht erreichbar",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/Ok" },
-                "examples": { "down": { "value": { "ok": false } } }
-              }
-            }
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Ok" } } }
           }
         }
       }
@@ -74,20 +66,6 @@
                     }
                   },
                   "required": ["machines"]
-                },
-                "examples": {
-                  "example": {
-                    "value": {
-                      "machines": [
-                        {
-                          "name": "Maschine1",
-                          "identifikation": "UG39BE-47H8UJ",
-                          "letzteWartung": "01.08.2017",
-                          "durchgängigeLaufzeit": 2059
-                        }
-                      ]
-                    }
-                  }
                 }
               }
             }
@@ -98,45 +76,22 @@
     "/api/machines/{name}": {
       "get": {
         "tags": ["Machines"],
-        "summary": "Maschinen-Details",
+        "summary": "Maschinen-Details (Anzeigeformat)",
         "parameters": [
-          {
-            "name": "name",
-            "in": "path",
-            "required": true,
-            "schema": { "type": "string" }
-          }
+          { "name": "name", "in": "path", "required": true, "schema": { "type": "string" } }
         ],
         "responses": {
           "200": {
             "description": "Details",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/MachineDetail" },
-                "examples": {
-                  "example": {
-                    "value": {
-                      "identifikation": "UG39BE-47H8UJ",
-                      "letzteWartung": "01.08.2017",
-                      "durchgängigeLaufzeit": 2059,
-                      "temperatur": 28.12,
-                      "aktuelleLeistung": 56,
-                      "betriebsminutenGesamt": 20059,
-                      "geschwindigkeit": 2.15
-                    }
-                  }
-                }
+                "schema": { "$ref": "#/components/schemas/MachineDetailDisplay" }
               }
             }
           },
           "404": {
             "description": "Nicht gefunden",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/Error" },
-                "examples": { "notFound": { "value": { "error": "not found" } } }
-              }
-            }
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
           }
         }
       }
@@ -148,7 +103,7 @@
         "parameters": [
           { "name": "name", "in": "path", "required": true, "schema": { "type": "string" } },
           { "name": "since", "in": "query", "required": false, "schema": { "type": "string", "format": "date-time" } },
-          { "name": "limit", "in": "query", "required": false, "schema": { "type": "integer", "minimum": 1, "maximum": 500, "default": 100 } }
+          { "name": "limit", "in": "query", "required": false, "schema": { "type": "integer", "minimum": 1, "maximum": 2000, "default": 500 } }
         ],
         "responses": {
           "200": {
@@ -156,88 +111,40 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "items": { "type": "array", "items": { "$ref": "#/components/schemas/TelemetryItem" } }
-                  },
-                  "required": ["items"]
-                },
-                "examples": {
-                  "example": {
-                    "value": {
-                      "items": [
-                        {
-                          "ts": "2025-08-29T12:00:00Z",
-                          "temperatur": 28.4,
-                          "aktuelleLeistung": 55,
-                          "betriebsminutenGesamt": 20060,
-                          "geschwindigkeit": 2.10
-                        }
-                      ]
-                    }
-                  }
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/TelemetryItemOutput" }
                 }
               }
             }
           },
           "404": {
             "description": "Nicht gefunden",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/Error" },
-                "examples": { "notFound": { "value": { "error": "not found" } } }
-              }
-            }
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
           }
         }
       },
       "post": {
         "tags": ["Machines"],
-        "summary": "Telemetry einfügen",
+        "summary": "Telemetry einfügen (Teil-Update)",
         "parameters": [
           { "name": "name", "in": "path", "required": true, "schema": { "type": "string" } }
         ],
         "requestBody": {
           "required": true,
-          "content": {
-            "application/json": {
-              "schema": { "$ref": "#/components/schemas/TelemetryPost" },
-              "examples": {
-                "partial": {
-                  "value": { "temperatur": 42.1, "aktuelleLeistung": 63 }
-                }
-              }
-            }
-          }
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/TelemetryPost" } } }
         },
         "responses": {
-          "201": {
-            "description": "Erstellt",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/Ok" },
-                "examples": { "ok": { "value": { "ok": true } } }
-              }
-            }
-          },
-          "400": {
-            "description": "Ungültiger Body",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/Error" },
-                "examples": { "bad": { "value": { "error": "invalid" } } }
-              }
-            }
-          },
-          "404": {
-            "description": "Maschine nicht gefunden",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/Error" },
-                "examples": { "notFound": { "value": { "error": "not_found" } } }
-              }
-            }
-          }
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Ok" } } } },
+          "404": { "description": "Maschine nicht gefunden", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/api/openapi.json": {
+      "get": {
+        "tags": ["Health"],
+        "summary": "Rohes OpenAPI-Dokument",
+        "responses": {
+          "200": { "description": "JSON", "content": { "application/json": { "schema": { "type": "object" } } } }
         }
       }
     }
@@ -264,29 +171,35 @@
         },
         "required": ["name", "identifikation", "letzteWartung", "durchgängigeLaufzeit"]
       },
-      "MachineDetail": {
+      "MachineDetailDisplay": {
         "type": "object",
         "properties": {
           "identifikation": { "type": "string" },
-          "letzteWartung": { "type": "string" },
-          "durchgängigeLaufzeit": { "type": "number" },
-          "temperatur": { "type": "number" },
-          "aktuelleLeistung": { "type": "number", "minimum": 0, "maximum": 100 },
-          "betriebsminutenGesamt": { "type": "number", "minimum": 0 },
-          "geschwindigkeit": { "type": "number", "minimum": 0 }
+          "temperatur": { "type": "string", "example": "28°" },
+          "durchgängigeLaufzeit": { "type": "string", "example": "2059 Minuten" },
+          "Motor": {
+            "type": "object",
+            "properties": {
+              "aktuelleLeistung": { "type": "string", "example": "56%" },
+              "betriebsminutenGesamt": { "type": "string", "example": "20059 Minuten" },
+              "letzteWartung": { "type": "string", "example": "01.08.2017" }
+            },
+            "required": ["aktuelleLeistung", "betriebsminutenGesamt", "letzteWartung"]
+          },
+          "geschwindigkeit": { "type": "string", "example": "2.15 m/s" }
         },
-        "required": ["identifikation", "letzteWartung", "durchgängigeLaufzeit", "temperatur", "aktuelleLeistung", "betriebsminutenGesamt", "geschwindigkeit"]
+        "required": ["identifikation", "temperatur", "durchgängigeLaufzeit", "Motor", "geschwindigkeit"]
       },
-      "TelemetryItem": {
+      "TelemetryItemOutput": {
         "type": "object",
         "properties": {
-          "ts": { "type": "string", "format": "date-time" },
+          "createdAt": { "type": "string", "format": "date-time" },
           "temperatur": { "type": "number" },
           "aktuelleLeistung": { "type": "number", "minimum": 0, "maximum": 100 },
           "betriebsminutenGesamt": { "type": "number", "minimum": 0 },
           "geschwindigkeit": { "type": "number", "minimum": 0 }
         },
-        "required": ["ts"]
+        "required": ["createdAt"]
       },
       "TelemetryPost": {
         "type": "object",
