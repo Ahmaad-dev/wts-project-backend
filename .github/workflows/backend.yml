@@ -19,7 +19,7 @@ jobs:
     env:
       REGISTRY: acrswewts.azurecr.io
       IMAGE: machines-backend
-      VERSION: "3.0.8" 
+      VERSION: "3.0.9" 
     steps:
       - uses: actions/checkout@v4
 
