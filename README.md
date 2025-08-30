@@ -14,11 +14,11 @@ Ein Node.js-Backend für Maschinen-Monitoring mit Echtzeit-Telemetrie.
 ## Live
 - **Frontend:** https://saswewtsz1.z1.web.core.windows.net/  
 - **Backend (FQDN – aktuelle Revision):**  
-  `ca-swe-wts-backend--0000007.happymeadow-a2b0a3fc.swedencentral.azurecontainerapps.io`
+  `ca-swe-wts-backend--0000008.happymeadow-a2b0a3fc.swedencentral.azurecontainerapps.io`
 - **API-Doku (Swagger UI):**  
-  `ca-swe-wts-backend--0000007.happymeadow-a2b0a3fc.swedencentral.azurecontainerapps.io/api/docs`
+  `ca-swe-wts-backend--0000008.happymeadow-a2b0a3fc.swedencentral.azurecontainerapps.io/api/docs`
 - **OpenAPI JSON (für Swagger Editor):**  
-  `ca-swe-wts-backend--0000007.happymeadow-a2b0a3fc.swedencentral.azurecontainerapps.io/api/openapi.json`
+  `ca-swe-wts-backend--0000008.happymeadow-a2b0a3fc.swedencentral.azurecontainerapps.io/api/openapi.json`
 
 > Hinweis: Der FQDN ändert sich bei neuen Revisionen. Mit `az containerapp show -g <rg> -n <app> --query properties.latestRevisionFqdn -o tsv` holst du den aktuellen.
 
@@ -65,5 +65,5 @@ Ein Node.js-Backend für Maschinen-Monitoring mit Echtzeit-Telemetrie.
 # .env mit DB_HOST/DB_NAME/DB_USER/DB_PASS/ALLOWED_ORIGINS anlegen
 npm install
 npm run dev
-# oder
+# oder direkt
 npm start

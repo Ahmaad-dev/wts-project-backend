@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "WTS Machines API",
-    "version": "1.1.0",
+    "version": "1.1.1",
     "description": "Backend für Maschinen-Monitoring mit Azure SQL und Socket.IO."
   },
   "servers": [
@@ -10,10 +10,11 @@
       "url": "https://{host}",
       "variables": {
         "host": {
-          "default": "ca-swe-wts-backend--0000006.happymeadow-a2b0a3fc.swedencentral.azurecontainerapps.io"
+          "default": "ca-swe-wts-backend.happymeadow-a2b0a3fc.swedencentral.azurecontainerapps.io"
         }
       }
-    }
+    },
+    { "url": "http://localhost:8080" }
   ],
   "tags": [
     { "name": "Health" },
@@ -23,6 +24,7 @@
   "paths": {
     "/health": {
       "get": {
+        "operationId": "getHealth",
         "tags": ["Health"],
         "summary": "Liveness",
         "responses": {
@@ -32,6 +34,7 @@
     },
     "/readyz": {
       "get": {
+        "operationId": "getReady",
         "tags": ["Health"],
         "summary": "Readiness (DB)",
         "responses": {
@@ -42,6 +45,7 @@
     },
     "/api/machines/basic": {
       "get": {
+        "operationId": "listMachinesBasic",
         "tags": ["Machines"],
         "summary": "Liste kompakter Maschinendaten",
         "responses": {
@@ -58,6 +62,7 @@
     },
     "/api/machines/names": {
       "get": {
+        "operationId": "listMachineNames",
         "tags": ["Machines"],
         "summary": "Alle Maschinennamen",
         "responses": {
@@ -74,6 +79,7 @@
     },
     "/api/machines/{name}": {
       "get": {
+        "operationId": "getMachineDetail",
         "tags": ["Machines"],
         "summary": "Maschinen-Details (Anzeigeformat)",
         "parameters": [
@@ -87,6 +93,7 @@
     },
     "/api/machines/{name}/telemetry": {
       "get": {
+        "operationId": "listTelemetry",
         "tags": ["Machines"],
         "summary": "Telemetry-Historie",
         "parameters": [
@@ -96,10 +103,12 @@
         ],
         "responses": {
           "200": { "description": "Historie", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/TelemetryItemOutput" } } } } },
+          "400": { "description": "Ungültiger Parameter (z. B. since)", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
           "404": { "description": "Nicht gefunden", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
         }
       },
       "post": {
+        "operationId": "postTelemetry",
         "tags": ["Machines"],
         "summary": "Telemetry einfügen (Teil-Update)",
         "parameters": [
@@ -117,6 +126,7 @@
     },
     "/api/machines/{name}/metrics/{key}": {
       "get": {
+        "operationId": "listMetricPoints",
         "tags": ["Machines"],
         "summary": "Gezielte Metrik für eine Maschine",
         "parameters": [
@@ -127,13 +137,14 @@
         ],
         "responses": {
           "200": { "description": "Werte", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/MetricPoint" } } } } },
-          "400": { "description": "Ungültiger Metrik-Schlüssel", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "400": { "description": "Ungültiger Parameter (z. B. key oder since)", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
           "404": { "description": "Maschine nicht gefunden", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
         }
       }
     },
     "/api/meta/metrics": {
       "get": {
+        "operationId": "listMetricsMeta",
         "tags": ["Meta"],
         "summary": "Alle abfragbaren Metriken",
         "responses": {
@@ -143,6 +154,7 @@
     },
     "/api/meta/formats/datetime": {
       "get": {
+        "operationId": "getDateTimeFormat",
         "tags": ["Meta"],
         "summary": "Formatbeschreibung für date-time (since)",
         "responses": {
@@ -152,6 +164,7 @@
     },
     "/api/openapi.json": {
       "get": {
+        "operationId": "getOpenApiJson",
         "tags": ["Meta"],
         "summary": "Rohes OpenAPI-Dokument",
         "responses": {
