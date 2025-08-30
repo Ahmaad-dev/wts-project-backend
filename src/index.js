@@ -132,7 +132,9 @@ app.get('/api/machines/basic', async (req, res) => {
     name: r.name,
     identifikation: r.identifikation,
     letzteWartung: r.letzteWartung,
-    durchgängigeLaufzeit: round3(r.durchgaengigeLaufzeit)
+    durchgängigeLaufzeit: round3(r.durchgaengigeLaufzeit),
+    stationName: r.stationName || null,
+    stationType: r.stationType || null
   }))
   res.json({ machines: data })
 })
@@ -257,6 +259,45 @@ app.post('/api/machines/:name/telemetry', postLimiter, validateTelemetryBody, as
   res.json({ ok: true })
 })
 
+// --- Stations: distinct Liste
+app.get('/api/stations/names', async (req, res) => {
+  const rows = await Machine.findAll({
+    attributes: ['stationName'],
+    where: { stationName: { [Op.ne]: null } },
+    group: ['stationName'],
+    order: [['stationName', 'ASC']]
+  })
+  res.json({ stations: rows.map(r => r.stationName) })
+})
+
+// --- Stations: Übersicht inkl. Maschinen
+app.get('/api/stations', async (req, res) => {
+  const rows = await Machine.findAll({
+    attributes: ['name','stationName','stationType'],
+    order: [['stationName','ASC'], ['name','ASC']]
+  })
+  const by = new Map()
+  for (const r of rows) {
+    const key = r.stationName || 'Unassigned'
+    if (!by.has(key)) by.set(key, { name: key, type: r.stationType || null, machines: [] })
+    by.get(key).machines.push(r.name)
+  }
+  res.json({ stations: Array.from(by.values()) })
+})
+
+// --- Station -> Maschinenliste
+app.get('/api/stations/:station/machines', async (req, res) => {
+  const { station } = req.params
+  const rows = await Machine.findAll({
+    attributes: ['name'],
+    where: { stationName: station },
+    order: [['name','ASC']]
+  })
+  res.json({ station, machines: rows.map(r => r.name) })
+})
+
+
+
 /* ---------- generische Detail-Route zuletzt ---------- */
 app.get('/api/machines/:name', async (req, res) => {
   const m = await Machine.findOne({ where: { name: req.params.name } })
@@ -270,7 +311,9 @@ app.get('/api/machines/:name', async (req, res) => {
       betriebsminutenGesamt: `${round3(m.betriebsminutenGesamt)} Minuten`,
       letzteWartung: m.letzteWartung
     },
-    geschwindigkeit: `${round3(m.geschwindigkeit)} m/s`
+    geschwindigkeit: `${round3(m.geschwindigkeit)} m/s`,
+    stationName: m.stationName || null,
+    stationType: m.stationType || null
   })
 })
 

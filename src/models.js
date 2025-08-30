@@ -26,9 +26,15 @@ export const Machine = sequelize.define('Machine', {
   temperatur: DataTypes.DECIMAL(5,2),
   aktuelleLeistung: DataTypes.DECIMAL(5,2),
   betriebsminutenGesamt: DataTypes.DECIMAL(12,1),
-  geschwindigkeit: DataTypes.DECIMAL(5,2)
+  geschwindigkeit: DataTypes.DECIMAL(5,2),
+  stationName: { type: DataTypes.STRING, allowNull: true },
+  stationType: { type: DataTypes.STRING, allowNull: true }
+
 }, {
-  indexes: [{ unique: true, fields: ['name'], name: 'ux_machines_name' }],
+  indexes: [
+    { unique: true, fields: ['name'], name: 'ux_machines_name' },,
+    { fields: ['stationName'], name: 'ix_machines_station' }
+  ],
   timestamps: false
 })
 
