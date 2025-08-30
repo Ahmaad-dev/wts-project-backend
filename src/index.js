@@ -1,6 +1,9 @@
 import 'dotenv/config'
 import express from 'express'
 import cors from 'cors'
+import helmet from 'helmet'
+import rateLimit from 'express-rate-limit'
+import { z } from 'zod'
 import { createServer } from 'http'
 import { Server } from 'socket.io'
 import { readFileSync } from 'fs'
@@ -22,7 +25,12 @@ const PERSIST_EVERY_MS = parseInt(process.env.TELEMETRY_DB_SAVE_MS || '5000', 10
 const lastPersist = new Map()
 
 const app = express()
+app.set('trust proxy', 1) // hinter Azure Proxy korrektes RateLimit-Client-IP
 app.use(express.json())
+app.use(helmet({
+  contentSecurityPolicy: false, // Swagger UI / Inline-Skripte
+  crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' }
+}))
 
 let openapi = null
 try { openapi = JSON.parse(readFileSync(specPath, 'utf8')) } catch {}
@@ -117,7 +125,7 @@ app.get('/readyz', async (req, res) => {
   catch { res.status(503).json({ ok: false }) }
 })
 
-/* ---------- Machines (concrete first) ---------- */
+/* ---------- Machines (konkrete Routen zuerst) ---------- */
 app.get('/api/machines/basic', async (req, res) => {
   const rows = await Machine.findAll({ order: [['name', 'ASC']] })
   const data = rows.map(r => ({
@@ -197,8 +205,35 @@ app.get('/api/machines/:name/telemetry', async (req, res) => {
   res.json(out)
 })
 
-app.post('/api/machines/:name/telemetry', async (req, res) => {
-  const { temperatur, aktuelleLeistung, betriebsminutenGesamt, geschwindigkeit } = req.body
+/* ---------- POST /telemetry: Validation + RateLimit ---------- */
+const TelemetrySchema = z.object({
+  temperatur: z.coerce.number().min(-50).max(150).optional(),
+  aktuelleLeistung: z.coerce.number().min(0).max(100).optional(),
+  betriebsminutenGesamt: z.coerce.number().min(0).max(1e9).optional(),
+  geschwindigkeit: z.coerce.number().min(0).max(100).optional()
+}).refine(obj => Object.keys(obj).length > 0, { message: 'empty_body' })
+
+const postLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false
+})
+
+function validateTelemetryBody(req, res, next) {
+  const parsed = TelemetrySchema.safeParse(req.body)
+  if (!parsed.success) {
+    return res.status(400).json({
+      error: 'invalid_body',
+      details: parsed.error.issues.map(i => ({ path: i.path.join('.'), message: i.message }))
+    })
+  }
+  req.valid = parsed.data
+  next()
+}
+
+app.post('/api/machines/:name/telemetry', postLimiter, validateTelemetryBody, async (req, res) => {
+  const { temperatur, aktuelleLeistung, betriebsminutenGesamt, geschwindigkeit } = req.valid
   const m = await Machine.findOne({ where: { name: req.params.name } })
   if (!m) return res.status(404).json({ error: 'not found' })
 
@@ -222,6 +257,7 @@ app.post('/api/machines/:name/telemetry', async (req, res) => {
   res.json({ ok: true })
 })
 
+/* ---------- generische Detail-Route zuletzt ---------- */
 app.get('/api/machines/:name', async (req, res) => {
   const m = await Machine.findOne({ where: { name: req.params.name } })
   if (!m) return res.status(404).json({ error: 'not found' })
@@ -347,6 +383,7 @@ io.on('connection', s => {
   console.log(JSON.stringify({ event: 'socket_connected', id: s.id, origin: s.handshake.headers.origin || null }))
 })
 
+/* ---------- Debug (nur wenn ENABLE_DEBUG=1) ---------- */
 if (process.env.ENABLE_DEBUG === '1') {
   app.get('/debug/env', (req, res) => {
     const mask = v => (v ? `${String(v).slice(0,2)}***` : null)
@@ -361,5 +398,16 @@ if (process.env.ENABLE_DEBUG === '1') {
   app.get('/debug/db', async (req, res) => {
     try { await sequelize.authenticate(); res.json({ ok: true }) }
     catch { res.status(500).json({ ok: false }) }
+  })
+  app.post('/debug/reseed', async (req, res) => {
+    try {
+      await Telemetry.destroy({ where: {}, truncate: true })
+      await Machine.destroy({ where: {}, truncate: true })
+      await initDb(seed)
+      res.json({ ok: true, reseeded: true })
+    } catch (e) {
+      console.error('reseed failed', e)
+      res.status(500).json({ ok: false })
+    }
   })
 }
